@@ -74,7 +74,8 @@ def connectArduino():
 # def led_test():
 #     arduino.write(("R{0}C{1}L{2}".format(N3,N2,N1)).encode())
 
-def return_book():
+def Phase_3_Find_Space():
+    print("PHASE 3: FIND SPACE")
     image_tensor = detection_graph.get_tensor_by_name('image_tensor:0')
     detection_boxes = detection_graph.get_tensor_by_name('detection_boxes:0')
     detection_scores = detection_graph.get_tensor_by_name('detection_scores:0')
@@ -286,7 +287,8 @@ def decode(frame, arr):
 
 # mh.get_book_width()
 
-def PH_1_QRSCAN():
+def Phase_1_QR_Scan():
+    print("PHASE 1: QR SCAN")
     global qr_data
     while True:
         ret, frame = cap.read()
@@ -300,7 +302,8 @@ def PH_1_QRSCAN():
         cv2.waitKey(10)
 
 #matching
-def PH_2_QR_MATCH():
+def Phase_2_QR_Match():
+    print("PHASE 2: QR MATCH")
     while True:
         global MATCH_QR_CODE
         ret, frame = cap.read()
@@ -325,11 +328,33 @@ def PH_2_QR_MATCH():
 
 # 1
 # 1-10
+def HW_Arm_Neutral_Position():
+    print("HW ARM : NEUTRAL POSITION")
+    pass
+def Phase_1_5_Grab_Book():
+    print("PHASE 1.5: GRAB BOOK")
+    pass
+def Phase_4_Return_Book():
+    print("PHASE 4: RETURN BOOK")
+    pass
+
+def Phase_5_Return_Origin():
+    print("PHASE 5: RETURN ORIGIN BACKWARDS")
+    pass
+
+Phase_1_QR_Scan() #scans the book
+time.sleep(4) # give time
+Phase_1_5_Grab_Book() # grabs book
+HW_Arm_Neutral_Position() # neutral position
+Phase_2_QR_Match() # find and match with (line follower and collision detection)
+#slow down when matched()
+Phase_3_Find_Space()
+Phase_4_Return_Book()
+HW_Arm_Neutral_Position()
 
 
-PH_1_QRSCAN()
-time.sleep(2)
-PH_2_QR_MATCH()
+
+
 # return_book()
 
 

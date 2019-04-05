@@ -19,11 +19,12 @@ def get_qr_data(frame):
 
 
 
-# SCAN QRCODE
+# SCAN QRCODE /
 # PUT COMPATRTMENT
 # GRAB_BOOK() send go signal to arduino
 # neutral position
-# forward ( NOT AVAILABLE) # LEFT CENTER RIGHT
+# forward and match( NOT AVAILABLE) # LEFT CENTER RIGHT
+#
 # forward collision detection and avoidance while finding qr code match? stop()
 # slow down when matched()
 # returning position of arm
@@ -33,3 +34,5 @@ def get_qr_data(frame):
 # return book (arm)
 # neutral position
 #
+
+#audio?
