@@ -24,7 +24,7 @@ NUM_CLASSES = 1
 label_map = label_map_util.load_labelmap(PATH_TO_LABELS)
 categories = label_map_util.convert_label_map_to_categories(label_map, max_num_classes=NUM_CLASSES, use_display_name=True)
 category_index = label_map_util.create_category_index(categories)
-qr_data = ""
+
 centers = []
 video = cv2.VideoCapture(PATH_TO_VIDEO)
 cap = cv2.VideoCapture(0)
@@ -46,13 +46,15 @@ CURRENT_SPACE = []
 MAX_SPACE = []
 Node_Frame_Wait_Time = 0
 N1, N2, N3 = (0,0,0)
-QR_SCAN, FIND_MATCH_SHELF, RETURN_BOOK, GO_BACK = False, False, False, False
+#QR_SCAN, FIND_MATCH_SHELF, RETURN_BOOK, GO_BACK = False, False, False, False
 font = cv2.FONT_HERSHEY_SIMPLEX
 
+SCAN_QR_CODE, MATCH_QR_CODE, LINE_FOLLOWER, FIND_MATCH_SHELF, DETECTED_SPACE, RETURN = False, False, False, False, False, False
 
-
+qr_data_match = None
+qr_data_len = []
+qr_data_match_len = []
 detection_graph = tf.Graph()
-
 with detection_graph.as_default():
     od_graph_def = tf.GraphDef()
     with tf.gfile.GFile(PATH_TO_CKPT, 'rb') as fid:
@@ -251,6 +253,7 @@ def return_book():
     #
 
 
+#Scan qr code
 def qr_display(frame, decodedObjects):
     # Loop over all decoded objects
     for decodedObject in decodedObjects:
@@ -265,7 +268,7 @@ def qr_display(frame, decodedObjects):
         for j in range(0, n):
             cv2.line(frame, hull[j], hull[(j + 1) % n], (255, 0, 0), 3)
 
-def decode(frame):
+def decode(frame, arr):
     while True:
         data = ""
         decodedObjects = pyzbar.decode(frame)
@@ -273,36 +276,61 @@ def decode(frame):
             print('Type : ', obj.type)
             print('Data : ', obj.data, '\n')
             data = obj.data
-        return decodedObjects, len(decodedObjects), data
+            arr.append(data)
+        return decodedObjects,  data
 
 
 
-while True:
-    ret, frame = cap.read()
-    qr_display(frame, decode(frame)[0])
-    if (decode(frame)[1] == 1):
-        QR_SCAN = True
-        qr_data = decode(frame)[2]
-
-        # d = get(str(decode(frame)[1]))
-        # conn.sendall(str.encode(d))
-    #     data = decode(frame)[2] # get qr code data
-
-
-    cv2.imshow('frame', frame)
-    cv2.waitKey(10)
-    if QR_SCAN == True:
-        cap2 = cv2.VideoCapture(0)
-        ret1, frame1 = cap2.read()
-        mh.line_follower()
-        return_book()
-        print("YOOOOOOOOOOOOOOOOO {}".format(qr_data))
-        break
 
 
 
 # mh.get_book_width()
 
+def PH_1_QRSCAN():
+    global qr_data
+    while True:
+        ret, frame = cap.read()
+        qr_display(frame, decode(frame, qr_data_len)[0])
+        if len(qr_data_len) > 0: #if qr data is scanned
+            SCAN_QR_CODE = True #qr state true
+            qr_data = str(qr_data_len[0]) #assign to data
+            print(qr_data_len[0]) # prints data
+            break
+        cv2.imshow('frame', frame)
+        cv2.waitKey(10)
+
+#matching
+def PH_2_QR_MATCH():
+    while True:
+        global MATCH_QR_CODE
+        ret, frame = cap.read()
+        qr_display(frame, decode(frame, qr_data_match_len)[0])
+        if len(qr_data_match_len) > 0:
+            qr_data_match = str(qr_data_match_len[len(qr_data_match_len) - 1])
+            qr_data_match_split = qr_data_match.replace("'", '').replace('b', "").split(",")
+            qr_data_replace = str(qr_data).replace("'", '').replace('b', "")
+            for i in range(len(qr_data_match_split)):
+                if qr_data_replace in qr_data_match_split[i]:
+                    print("{0} is in {1}".format(qr_data_match_split[i], qr_data_replace))  # prints data match
+                    MATCH_QR_CODE =True
+                    break
+                else:
+                    print("{0} no match to {1} line follower".format(qr_data_match_split[i],qr_data_replace))  # prints data match
+                    print("forward")
+        if MATCH_QR_CODE == True:
+            break
+        cv2.imshow('frame', frame)
+        cv2.waitKey(10)
+
+
+# 1
+# 1-10
+
+
+PH_1_QRSCAN()
+time.sleep(2)
+PH_2_QR_MATCH()
+# return_book()
 
 
 
