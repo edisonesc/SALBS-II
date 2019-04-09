@@ -9,7 +9,7 @@ import time
 import pyzbar.pyzbar as pyzbar
 import main_helper as mh
 import traceback
-
+import RPi.GPIO as GPIO
 import imutils
 from imutils.video.pivideostream import PiVideoStream
 
@@ -19,7 +19,7 @@ import picamera.array
 from picamera.array import PiRGBArray
 from picamera import PiCamera
 
-
+import MainHelperRpi as mhr
 
 sys.path.append("..")
 from utils import label_map_util
@@ -59,13 +59,20 @@ CURRENT_SPACE = []
 MAX_SPACE = []
 Node_Frame_Wait_Time = 0
 N1, N2, N3 = (0,0,0)
-QR_SCAN, FIND_MATCH_SHELF, RETURN_BOOK, GO_BACK = False, False, False, False
+SCAN_QR_CODE, MATCH_QR_CODE, LINE_FOLLOWER, FIND_MATCH_SHELF, DETECTED_SPACE, RETURN = False, False, False, False, False, False
+
 font = cv2.FONT_HERSHEY_SIMPLEX
 
 min_t_hold = 0.80
-
+qr_data_match = None
+qr_data_len = []
+qr_data_match_len = []
 detection_graph = tf.Graph()
 
+
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(4, GPIO.OUT)
+GPIO.output(4, False)
 with detection_graph.as_default():
     od_graph_def = tf.GraphDef()
     with tf.gfile.GFile(PATH_TO_CKPT, 'rb') as fid:
@@ -73,7 +80,8 @@ with detection_graph.as_default():
         od_graph_def.ParseFromString(serialized_graph)
         tf.import_graph_def(od_graph_def, name='')
 
-
+#vs = PiVideoStream().start()                 
+#time.sleep(2.0)
 def connectArduino():
     arduino = serial.Serial('COM4', 9600, timeout=1)
     time.sleep(2)
@@ -85,44 +93,125 @@ def connectArduino():
 # def led_test():
 #     arduino.write(("R{0}C{1}L{2}".format(N3,N2,N1)).encode())
 
-def return_book():
+def qr_display(frame, decodedObjects):
+    # Loop over all decoded objects
+    for decodedObject in decodedObjects:
+        points = decodedObject.polygon
+        # If the points do not form a quad, find convex hull
+        if len(points) > 4:
+            hull = cv2.convexHull(np.array([point for point in points], dtype=np.float32))
+            hull = list(map(tuple, np.squeeze(hull)))
+        else:
+            hull = points
+        n = len(hull)
+        for j in range(0, n):
+            cv2.line(frame, hull[j], hull[(j + 1) % n], (255, 0, 0), 3)
+
+def decode(frame, arr):
+    while True:
+        data = ""
+        decodedObjects = pyzbar.decode(frame)
+        for obj in decodedObjects:
+            print('Type : ', obj.type)
+            print('Data : ', obj.data, '\n')
+            data = obj.data
+            arr.append(data)
+        return decodedObjects,  data
+
+
+
+def Phase_1_QR_Scan():
+    print("PHASE 1: QR SCAN")
+    vs = PiVideoStream().start() 
+                    
+    time.sleep(2.0)
+    global qr_data
+    while True:
+        GPIO.output(4, True)
+        frame = vs.read()
+        qr_display(frame, decode(frame, qr_data_len)[0])
+        if len(qr_data_len) > 0: #if qr data is scanned
+            vs.stop()
+            SCAN_QR_CODE = True #qr state true
+            qr_data = str(qr_data_len[0]) #assign to data
+            print(qr_data_len[0]) # prints data
+            break
+            
+
+        cv2.imshow('frame', frame)
+        cv2.waitKey(10)
+    vs.stop()
+    GPIO.output(4, False)
+    
+        
+
+
+def Phase_2_QR_Match():
+    print("PHASE 2: QR MATCH")
+    vs = PiVideoStream().start()                 
+    time.sleep(2.0)
+    while True:
+        global MATCH_QR_CODE
+        GPIO.output(4, True)
+
+        frame = vs.read()
+        qr_display(frame, decode(frame, qr_data_match_len)[0])
+        if len(qr_data_match_len) > 0:
+            qr_data_match = str(qr_data_match_len[len(qr_data_match_len) - 1])
+            qr_data_match_split = qr_data_match.replace("'", '').replace('b', "").split(",")
+            qr_data_replace = str(qr_data).replace("'", '').replace('b', "")
+            for i in range(len(qr_data_match_split)):
+                if qr_data_replace in qr_data_match_split[i]:
+                    print("{0} is in {1}".format(qr_data_match_split[i], qr_data_replace))  # prints data match
+                    MATCH_QR_CODE =True
+                    break
+                else:
+                    print("{0} no match to {1} line follower".format(qr_data_match_split[i],qr_data_replace))  # prints data match
+                    print("forward")
+        if MATCH_QR_CODE == True:
+            break
+            
+        cv2.imshow('frame', frame)
+        cv2.waitKey(10)
+    vs.stop()
+    GPIO.output(4, False)
+def Phase_3_Find_Space():
+    print("PHASE 3: FIND SPACE")
     Node1, Node2, Node3 = True, True, True
+    def node_status():
+        if Node3:
+            cv2.putText(frame, "NOT AVAILABLE", (RIGHT_R_outside),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+        if Node2:
+            cv2.putText(frame, "NOT AVAILABLE", (CENTER_R_outside),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+
+        if Node1:
+            cv2.putText(frame, "NOT AVAILABLE", (LEFT_R_outside),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+    
+    
     image_tensor = detection_graph.get_tensor_by_name('image_tensor:0')
     detection_boxes = detection_graph.get_tensor_by_name('detection_boxes:0')
     detection_scores = detection_graph.get_tensor_by_name('detection_scores:0')
     detection_classes = detection_graph.get_tensor_by_name('detection_classes:0')
     num_detections = detection_graph.get_tensor_by_name('num_detections:0')
-    def node_status():
-        if Node1:
-            cv2.putText(frame, "NOT AVAILABLE", (LEFT_R_outside),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
-        if Node2:
-            cv2.putText(frame, "NOT AVAILABLE", (CENTER_R_outside),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
-        if Node3:
-            cv2.putText(frame, "NOT AVAILABLE", (RIGHT_R_outside),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
-        
     frame_rate_calc = 1
     freq = cv2.getTickFrequency()
     global  frame
-    
-    vs = PiVideoStream().start()
-    time.sleep(2.0)
     with detection_graph.as_default():
         with tf.Session() as sess:
+            vs = PiVideoStream().start()
+            time.sleep(2)
             while True:
-                
                 frame = vs.read()
                 frame = imutils.resize(frame, width=400)
                 t1 = cv2.getTickCount()
-                
                 cv2.putText(frame, "FPS: {0:.2f}".format(frame_rate_calc), (30, 50), font, 1, (255, 255, 0), 2,
                             cv2.LINE_AA)
                 t2 = cv2.getTickCount()
                 time1 = (t2 - t1) / freq
                 frame_rate_calc = 1 / time1
-              
                 frame_expanded = np.expand_dims(frame, axis=0)
 
                 (boxes, scores, classes, num) = sess.run(
@@ -136,8 +225,8 @@ def return_book():
                     category_index,
                     use_normalized_coordinates=True,
                     line_thickness=5,
+                    # min_score_thresh=0.80
                     min_score_thresh=min_t_hold
-                    #min_score_thresh=0.38
                 )
                 cv2.rectangle(frame, RIGHT_L_outside, RIGHT_R_outside, (255, 255, 255), 1)
                 cv2.rectangle(frame, CENTER_L_outside, CENTER_R_outside, (255, 255, 255), 1)
@@ -260,7 +349,6 @@ def return_book():
                     # print("break")
                 except Exception as e:
                     print(e)
-                    traceback.print_exc()
 
                 # cv2.imshow('object detection', cv2.resize(frame, (800, 480)))
 
@@ -268,66 +356,47 @@ def return_book():
                 # cv2.waitKey(250)
                 if cv2.waitKey(25) & 0xFF == ord('q'):
                     cv2.destroyAllWindows()
-                    vs.stop()
                     break
+            vs.stop()
+    #
+
+
                 
-                
 
+def HW_Arm_Neutral_Position():
+    print("HW ARM : NEUTRAL POSITION")
+    pass
+def Phase_1_5_Grab_Book():
+    print("PHASE 1.5: GRAB BOOK")
+    pass
+def Phase_4_Return_Book():
+    print("PHASE 4: RETURN BOOK")
+    pass
+    
+    
 
-def qr_display(frame, decodedObjects):
-    # Loop over all decoded objects
-    for decodedObject in decodedObjects:
-        points = decodedObject.polygon
-        # If the points do not form a quad, find convex hull
-        if len(points) > 4:
-            hull = cv2.convexHull(np.array([point for point in points], dtype=np.float32))
-            hull = list(map(tuple, np.squeeze(hull)))
-        else:
-            hull = points
-        n = len(hull)
-        for j in range(0, n):
-            cv2.line(frame, hull[j], hull[(j + 1) % n], (255, 0, 0), 3)
+def Phase_5_Return_Origin():
+    print("PHASE 5: RETURN ORIGIN BACKWARDS")
+    #playsound('RETURNED.mp3')
+    pass
 
-def decode(frame):
-    while True:
-        data = ""
-        decodedObjects = pyzbar.decode(frame)
-        for obj in decodedObjects:
-            print('Type : ', obj.type)
-            print('Data : ', obj.data, '\n')
-            data = obj.data
-        return decodedObjects, len(decodedObjects), data
+Phase_1_QR_Scan() #scans the book
+time.sleep(4) # give time
+Phase_1_5_Grab_Book() # grabs book
+HW_Arm_Neutral_Position() # neutral position
+Phase_2_QR_Match() # find and match with (line follower and collision detection)
+#slow down when matched()
+time.sleep(3)
 
+Phase_3_Find_Space()
 
-
-
-
-
-
-vs = PiVideoStream().start()
-time.sleep(2.0)
-
-while True:
-   
-    frame = vs.read()
-            
-    qr_display(frame, decode(frame)[0])
-    if (decode(frame)[1] == 1):
-        QR_SCAN = True
-        qr_data = decode(frame)[2]
-
-    cv2.imshow('frame', frame)
-    cv2.waitKey(10)
-    if QR_SCAN == True:
-        vs.stop()
-        return_book()
-        print("YOOOOOOOOOOOOOOOOO {}".format(qr_data))
-        break
-
-
-         
+Phase_4_Return_Book()
+HW_Arm_Neutral_Position()
+Phase_5_Return_Origin()
 
 cv2.destroyAllWindows()
+
+
 
 
 
