@@ -8,7 +8,7 @@ import serial
 import time
 import pyzbar.pyzbar as pyzbar
 import main_helper as mh
-
+from playsound import playsound
 sys.path.append("..")
 from utils import label_map_util
 from utils import visualization_utils as vis_util
@@ -99,7 +99,7 @@ def Phase_3_Find_Space():
         with tf.Session() as sess:
             while True:
                 t1 = cv2.getTickCount()
-                ret, frame = current.read()
+                ret, frame = cap.read()
                 cv2.putText(frame, "FPS: {0:.2f}".format(frame_rate_calc), (30, 50), font, 1, (255, 255, 0), 2,
                             cv2.LINE_AA)
                 t2 = cv2.getTickCount()
@@ -118,8 +118,8 @@ def Phase_3_Find_Space():
                     category_index,
                     use_normalized_coordinates=True,
                     line_thickness=5,
-                    # min_score_thresh=0.80
-                    min_score_thresh=0.38
+                    min_score_thresh=0.80
+                    #min_score_thresh=0.38
                 )
                 cv2.rectangle(frame, RIGHT_L_outside, RIGHT_R_outside, (255, 255, 255), 1)
                 cv2.rectangle(frame, CENTER_L_outside, CENTER_R_outside, (255, 255, 255), 1)
@@ -129,7 +129,7 @@ def Phase_3_Find_Space():
                     for i, b in enumerate(boxes[0]):
                         if classes[0][i] == 1:  # if book
                             # if scores[0][i] > 0.5:
-                            if scores[0][i] > 0.4:
+                            if scores[0][i] > 0.8:
                                 ymin = boxes[0][i][0]
                                 xmin = boxes[0][i][1]
                                 ymax = boxes[0][i][2]
@@ -146,7 +146,7 @@ def Phase_3_Find_Space():
                                 # cv2.putText(frame, '{}'.format(apx_distance), (mid_x_pixel,mid_y_pixel), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255,255,255), 2)
                                 cv2.circle(frame, (mid_x_pixel, mid_y_pixel), 2, (255, 0, 0))
                                 # if apx_distance <= 0.5:
-                                if apx_distance <= 0.9:  # change to 0.5 ^
+                                if apx_distance <= 0.5:  # change to 0.5 ^
                                     cv2.putText(frame, "CLOSE", (mid_x_pixel - 50, mid_y_pixel - 50),
                                                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (244, 66, 137), 2)
                                     if mid_x > 0.6 and mid_x < 0.95:
@@ -157,12 +157,17 @@ def Phase_3_Find_Space():
                                             Node3 = True
                                             N3 = 1
                                             Node3_Frame[1] = 0
+                                            print("right stop")
+                                           #stop
+
                                     elif (mid_x > 0.6 and mid_x < 0.95) == False:
                                         Node3_Frame[0] += 1  # 1 is True 0 is False
                                         if Node3_Frame[0] >= Node_Frame_Wait_Time:
                                             Node3 = False
                                             N3 = 0
                                             Node3_Frame[0] = 0
+                                            print("right forward")
+                                            #move forward
                                     else:
                                         Node3 = None
                                     if mid_x > 0.32 and mid_x < 0.58:
@@ -173,6 +178,7 @@ def Phase_3_Find_Space():
                                             Node2 = True
                                             N2 = 1
                                             Node2_Frame[1] = 0
+                                            print("mid slow")
 
                                     elif (mid_x > 0.32 and mid_x < 0.58) == False:
                                         Node2_Frame[0] += 1
@@ -180,8 +186,11 @@ def Phase_3_Find_Space():
                                             Node2 = False
                                             N2 = 0
                                             Node2_Frame[0] = 0
+                                            print("mid stop")
                                     else:
                                         Node2 = None
+
+
                                     if mid_x > 0.05 and mid_x < 0.3:
                                         cv2.putText(frame, "LEFT", (mid_x_pixel - 50, mid_y_pixel),
                                                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, (66, 244, 128), 2)
@@ -190,12 +199,15 @@ def Phase_3_Find_Space():
                                             Node1 = True
                                             N1 = 1
                                             Node1_Frame[1] = 0
+                                            print("left forward")
+
                                     elif (mid_x > 0.05 and mid_x < 0.3) == False:
                                         Node1_Frame[0] += 1
                                         if Node1_Frame[0] >= Node_Frame_Wait_Time:
                                             Node1 = False
                                             N1 = 0
                                             Node1_Frame[0] = 0
+                                            print("left stop")
                                     else:
                                         Node1 = None
                                     # led_test()
@@ -298,9 +310,13 @@ def Phase_1_QR_Scan():
             qr_data = str(qr_data_len[0]) #assign to data
             print(qr_data_len[0]) # prints data
             break
+
+
         cv2.imshow('frame', frame)
         cv2.waitKey(10)
-
+    
+    playsound('QR_SCANNED.mp3')
+    playsound('BOOKCOMPARTMENT.mp3')
 #matching
 def Phase_2_QR_Match():
     print("PHASE 2: QR MATCH")
@@ -310,12 +326,28 @@ def Phase_2_QR_Match():
         qr_display(frame, decode(frame, qr_data_match_len)[0])
         if len(qr_data_match_len) > 0:
             qr_data_match = str(qr_data_match_len[len(qr_data_match_len) - 1])
-            qr_data_match_split = qr_data_match.replace("'", '').replace('b', "").split(",")
+            qr_data_match_split = qr_data_match.replace("'", '').replace('b', "").split(",") # 1, 2, 3, 4, 5, 6
+            qr_data_match_split_lower = []
+            qr_data_match_split_higher = []
+
+
+            for num in range(0, len(qr_data_match_split)):
+                if num <= int(len(qr_data_match_split) / 2) - 1:
+                    qr_data_match_split_lower.append(qr_data_match_split[num])
+                else:
+                    qr_data_match_split_higher.append(qr_data_match_split[num])
+
             qr_data_replace = str(qr_data).replace("'", '').replace('b', "")
+            print("LOWER SHELF: {0}".format(qr_data_match_split_lower))
+            print("HIGHER SHELF: {0}".format(qr_data_match_split_higher))
             for i in range(len(qr_data_match_split)):
-                if qr_data_replace in qr_data_match_split[i]:
-                    print("{0} is in {1}".format(qr_data_match_split[i], qr_data_replace))  # prints data match
+                if qr_data_replace in qr_data_match_split_lower[i]:
+                    print("LOWER SHELF: {0} is in {1}".format(qr_data_match_split_lower[i], qr_data_replace))  # prints data match
                     MATCH_QR_CODE =True
+                    break
+                elif qr_data_replace in qr_data_match_split_higher[i]:
+                    print("UPPER SHELF: {0} is in {1}".format(qr_data_match_split_higher[i], qr_data_replace))  # prints data match
+                    MATCH_QR_CODE = True
                     break
                 else:
                     print("{0} no match to {1} line follower".format(qr_data_match_split[i],qr_data_replace))  # prints data match
@@ -340,10 +372,11 @@ def Phase_4_Return_Book():
 
 def Phase_5_Return_Origin():
     print("PHASE 5: RETURN ORIGIN BACKWARDS")
+    playsound('RETURNED.mp3')
     pass
 
 Phase_1_QR_Scan() #scans the book
-time.sleep(4) # give time
+# time.sleep(4) # give time
 Phase_1_5_Grab_Book() # grabs book
 HW_Arm_Neutral_Position() # neutral position
 Phase_2_QR_Match() # find and match with (line follower and collision detection)
@@ -351,7 +384,7 @@ Phase_2_QR_Match() # find and match with (line follower and collision detection)
 Phase_3_Find_Space()
 Phase_4_Return_Book()
 HW_Arm_Neutral_Position()
-
+Phase_5_Return_Origin()
 
 
 
