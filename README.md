@@ -1,0 +1,1 @@
+# Pantera: Semi-autonomous Book Shelving Robot with Obstacle detection, QR Code matching line tracing, Book and Space detection
