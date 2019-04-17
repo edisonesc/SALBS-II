@@ -28,7 +28,7 @@ category_index = label_map_util.create_category_index(categories)
 centers = []
 video = cv2.VideoCapture(PATH_TO_VIDEO)
 cap = cv2.VideoCapture(0)
-current = video
+current = cap
 Node1, Node2, Node3 = True, True, True
 Node1_Frame, Node2_Frame, Node3_Frame = ([0,0],[0,0],[0,0])
 IM_WIDTH, IM_HEIGHT= current.get(cv2.CAP_PROP_FRAME_WIDTH) ,current.get(cv2.CAP_PROP_FRAME_HEIGHT)
@@ -64,42 +64,57 @@ with detection_graph.as_default():
 
 
 def connectArduino():
-    arduino = serial.Serial('COM4', 9600, timeout=1)
+    arduino = serial.Serial('COM5', 9600, timeout=1)
     time.sleep(2)
     print('Connection to Arduino')
     return arduino
-# arduino = connectArduino()
 
-
+#arduino = connectArduino()
 # def led_test():
 #     arduino.write(("R{0}C{1}L{2}".format(N3,N2,N1)).encode())
-
+forward, stop = [], []
 def Phase_3_Find_Space():
+    forward, stop = [], []
     print("PHASE 3: FIND SPACE")
     image_tensor = detection_graph.get_tensor_by_name('image_tensor:0')
     detection_boxes = detection_graph.get_tensor_by_name('detection_boxes:0')
     detection_scores = detection_graph.get_tensor_by_name('detection_scores:0')
     detection_classes = detection_graph.get_tensor_by_name('detection_classes:0')
     num_detections = detection_graph.get_tensor_by_name('num_detections:0')
+
     def node_status():
-        if Node3:
-            cv2.putText(frame, "NOT AVAILABLE", (RIGHT_R_outside),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
-        if Node2:
-            cv2.putText(frame, "NOT AVAILABLE", (CENTER_R_outside),
+        if Node3: #right
+            cv2.putText(frame, "NOT AVAILABLE R", (RIGHT_R_outside),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
 
-        if Node1:
-            cv2.putText(frame, "NOT AVAILABLE", (LEFT_R_outside),
+        if Node2: #center
+            cv2.putText(frame, "NOT AVAILABLE C", (CENTER_R_outside),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+
+        if Node1: #left
+            cv2.putText(frame, "NOT AVAILABLE L", (LEFT_R_outside),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+
+
+
+    def comm_serial_check():
+        # if Node3 == False and Node2 == False and Node1:
+        #     DETECTED_SPACE = True
+        #     print("STOP")
+        pass
+
+
+
+
     frame_rate_calc = 1
     freq = cv2.getTickFrequency()
     global  frame
     with detection_graph.as_default():
         with tf.Session() as sess:
             while True:
+                time.sleep(0.3)
                 t1 = cv2.getTickCount()
-                ret, frame = cap.read()
+                ret, frame = current.read()
                 cv2.putText(frame, "FPS: {0:.2f}".format(frame_rate_calc), (30, 50), font, 1, (255, 255, 0), 2,
                             cv2.LINE_AA)
                 t2 = cv2.getTickCount()
@@ -118,7 +133,7 @@ def Phase_3_Find_Space():
                     category_index,
                     use_normalized_coordinates=True,
                     line_thickness=5,
-                    min_score_thresh=0.80
+                    min_score_thresh=0.50
                     #min_score_thresh=0.38
                 )
                 cv2.rectangle(frame, RIGHT_L_outside, RIGHT_R_outside, (255, 255, 255), 1)
@@ -129,7 +144,7 @@ def Phase_3_Find_Space():
                     for i, b in enumerate(boxes[0]):
                         if classes[0][i] == 1:  # if book
                             # if scores[0][i] > 0.5:
-                            if scores[0][i] > 0.8:
+                            if scores[0][i] > 0.5:
                                 ymin = boxes[0][i][0]
                                 xmin = boxes[0][i][1]
                                 ymax = boxes[0][i][2]
@@ -157,7 +172,7 @@ def Phase_3_Find_Space():
                                             Node3 = True
                                             N3 = 1
                                             Node3_Frame[1] = 0
-                                            print("right stop")
+
                                            #stop
 
                                     elif (mid_x > 0.6 and mid_x < 0.95) == False:
@@ -166,7 +181,7 @@ def Phase_3_Find_Space():
                                             Node3 = False
                                             N3 = 0
                                             Node3_Frame[0] = 0
-                                            print("right forward")
+
                                             #move forward
                                     else:
                                         Node3 = None
@@ -178,7 +193,9 @@ def Phase_3_Find_Space():
                                             Node2 = True
                                             N2 = 1
                                             Node2_Frame[1] = 0
-                                            print("mid slow")
+                                            print("forwaaaaaaaaaaaaard")
+
+
 
                                     elif (mid_x > 0.32 and mid_x < 0.58) == False:
                                         Node2_Frame[0] += 1
@@ -186,8 +203,11 @@ def Phase_3_Find_Space():
                                             Node2 = False
                                             N2 = 0
                                             Node2_Frame[0] = 0
-                                            print("mid stop")
+                                            print("stooooooooop")
+
+
                                     else:
+
                                         Node2 = None
 
 
@@ -199,7 +219,7 @@ def Phase_3_Find_Space():
                                             Node1 = True
                                             N1 = 1
                                             Node1_Frame[1] = 0
-                                            print("left forward")
+
 
                                     elif (mid_x > 0.05 and mid_x < 0.3) == False:
                                         Node1_Frame[0] += 1
@@ -207,7 +227,7 @@ def Phase_3_Find_Space():
                                             Node1 = False
                                             N1 = 0
                                             Node1_Frame[0] = 0
-                                            print("left stop")
+
                                     else:
                                         Node1 = None
                                     # led_test()
@@ -252,17 +272,35 @@ def Phase_3_Find_Space():
 
                     # node_status()
                     # print("break")
+                    comm_serial_check()
+                    data = "0"
+                    if Node2 == False and Node3 == False and Node1 == False:
+
+
+                        if len(stop)  >= 4:
+                            print("Stop")
+                        else:
+                            forward.append(1)
+
+
+                    else :
+                        if len(forward) >= 4:
+                            print('forward')
+                        else:
+                            stop.append(1)
+
                 except Exception as e:
                     print(e)
+
 
                 # cv2.imshow('object detection', cv2.resize(frame, (800, 480)))
 
                 cv2.imshow('object detection', frame)
-                # cv2.waitKey(250)
-                if cv2.waitKey(25) & 0xFF == ord('q'):
+                cv2.waitKey(500)
+                if DETECTED_SPACE == True:
                     cv2.destroyAllWindows()
-
                     break
+
     #
 
 
@@ -291,11 +329,6 @@ def decode(frame, arr):
             data = obj.data
             arr.append(data)
         return decodedObjects,  data
-
-
-
-
-
 
 # mh.get_book_width()
 
@@ -385,6 +418,7 @@ Phase_3_Find_Space()
 Phase_4_Return_Book()
 HW_Arm_Neutral_Position()
 Phase_5_Return_Origin()
+
 
 
 
